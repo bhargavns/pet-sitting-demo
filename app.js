@@ -262,14 +262,14 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
         employer: {
           budget: userData.budget,
         },
-        email: req.session.email,
+        email: req.session.email, pets
       });
     } catch (error) {
       console.log(error);
       res.status(500).send("Error fetching profile data");
     }
   }
-  if (req.session.userType == "freelancer") {
+if (req.session.userType == "freelancer") {
     try {
       // Fetch the current profile data from the database
       const userData = await db.one(
@@ -359,6 +359,30 @@ app.post("/edit-profile", isLoggedIn, async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).send("Error updating profile");
+  }
+});
+
+// ----------------------------------------- ADD PET -------------------------------------------
+
+app.post("/add-pet", isLoggedIn, async(req, res) => {
+  const userId = req.session.userId;
+  const {
+    pet_name, pet_type, age, special_needs
+  } = req.body;
+
+  try {
+    const employer = await db.oneOrNone(`SELECT id from employer WHERE user_id = $1`, [userId]);
+
+    if (!employer)
+    {
+      return res.status(400).send("NOT AN EMPLOYER");
+    }
+    await db.none(`INSERT INTO pet (owner_id, name, pet_type, age, special_needs) VALUES ($1, $2, $3, $4, $5)`,
+      [employer.id, pet_name, pet_type, age, special_needs]);
+      res.render('pages/edit-profile', { message: 'Successfully added pet.', error: false});
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("ERROR adding pet!");
   }
 });
 
