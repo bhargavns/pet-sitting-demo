@@ -371,7 +371,8 @@ app.post("/add-pet", isLoggedIn, async (req, res) => {
       INSERT INTO pet (owner_id, name, pet_type, age, special_needs)
       VALUES ($1, $2, $3, $4, $5)`,
       [employer.id, pet_name, pet_type, age, special_needs]);
-      res.render('pages/edit-profile', { message: 'Succesfully added your pet.', error: false });
+    const pets = await db.any('SELECT * FROM pet');
+    res.render('pages/edit-profile', { message: 'Succesfully added your pet.', error: false , pets});
   } catch (error) {
     console.log(error);
     res.status(500).send("Error adding pet");
