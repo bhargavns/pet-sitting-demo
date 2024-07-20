@@ -1,5 +1,5 @@
 <h1>Edit Profile</h1>
-<form action="/edit-profile" method="post">
+<form action="/edit-profile/add" method="post">
   <label for="name">Name:</label>
   <input type="text" id="name" name="name" value="{{user.name}}" required /><br
   />
@@ -35,3 +35,51 @@
   {{/ifEquals}}
   <button type="submit">Update Profile</button>
 </form>
+
+<h2>Add Pet Info</h2>
+
+<div class="container mt-4">
+    <h2>Add a New Pet</h2>
+    <form action="/edit-profile-pet" method="POST">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" class="form-control" id="name" name="name" required>
+      </div>
+      <div class="form-group">
+        <label for="type">Pet Type</label>
+        <select class="form-control" id="type" name="type" required>
+          <option value="cat">Cat</option>
+          <option value="dog">Dog</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="age">Age</label>
+        <input type="number" class="form-control" id="age" name="age">
+      </div>
+      <div class="form-group">
+        <label for="specialNeeds">Special Needs</label>
+        <textarea class="form-control" id="specialNeeds" name="specialNeeds"></textarea>
+      </div>
+     <input type="hidden" name="ownerId" value="{{user.id}}">
+      <button type="submit" class="btn btn-primary mt-2">Add Pet</button>
+    </form>
+  </div>
+
+  <div class="container mt-4">
+    <h2>Your Pets</h2>
+    <div class="row">
+      {{#each pets}}
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">{{this.name}}</h5>
+            <p class="card-text">Type: {{this.type}}</p>
+            <p class="card-text">Age: {{this.age}}</p>
+            <p class="card-text">Special Needs: {{this.special_needs}}</p>
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+

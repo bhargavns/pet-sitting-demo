@@ -31,6 +31,7 @@ CREATE TABLE PET (
     pet_type VARCHAR(50) NOT NULL CHECK (pet_type IN ('dog', 'cat')),
     age INT NOT NULL CHECK (age >= 0 AND age <= 30),
     special_needs TEXT,
+     FOREIGN KEY (owner_id) REFERENCES users(id)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
