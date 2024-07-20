@@ -1,0 +1,19 @@
+<div class="d-flex justify-content-center align-items-center vh-40">
+    <div class="card w-75 mx-auto" style="max-width: 600px;">
+        <div class="card-body">
+            <h2 class="card-title job-title">{{title}}</h2>
+            <p class="card-subtitle mb-2 text-muted employer">Posted by: {{employer_name}}</p>
+            <div class="pet-info">
+                <span class="pet-name">{{pet_name}}</span>
+                <span class="pet-type">({{pet_type}})</span>
+            </div>
+            <p class="card-text job-description">{{description}}</p>
+            <div class="job-details">
+                <p class="date-range">From {{date_start}} to {{date_end}}</p>
+                <p class="hourly-rate">${{hourly_rate}}/hour</p>
+            </div>
+            <p class="card-text job-status">Status: {{status}}</p>
+            <p class="card-text job-location">Location: {{location}}</p>
+        </div>
+    </div>
+</div>

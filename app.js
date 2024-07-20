@@ -85,6 +85,10 @@ app.get("/", (req, res) => {
   res.send("Example website");
 });
 
+app.get("/home", (req, res) => {
+  res.render("pages/home");
+});
+
 app.get("/register", (req, res) => {
   res.render("pages/register");
 });
@@ -236,6 +240,77 @@ app.get("/jobs", isLoggedIn, async (req, res) => {
   }
 });
 
+
+app.get("/profile", isLoggedIn, async (req, res) => {
+  const userId = req.session.userId;
+  if (req.session.userType == "employer") {
+  const { id: actualUserId } = await db.one('SELECT id FROM employer WHERE user_id = $1', [userId])
+  try {
+    const query = `
+                SELECT 
+                    pet.owner_id,
+                    pet.name,
+                    pet.pet_type,
+                    pet.age,
+                    pet.special_needs
+                FROM 
+                    PET pet
+                WHERE
+                  owner_id = $1
+                `;
+
+    const pets = await db.any(query, [actualUserId]);
+
+    // Render the job board template with the jobs data
+    res.render("pages/profile", { pets, email: req.session.email });
+  } catch (err) {
+    console.error("Error fetching pets:", err);
+    res.status(500).send("Server error");
+  }
+}
+if (req.session.userType == "freelancer") {
+  const { id: actualUserId } = await db.one('SELECT id FROM freelancer WHERE user_id = $1', [userId])
+  try {
+    const query = `
+                SELECT 
+                    jp.id,
+                    jp.title,
+                    jp.description,
+                    TO_CHAR(jp.date_start, 'MM/DD/YYYY') AS date_start,
+                    TO_CHAR(jp.date_end, 'MM/DD/YYYY') AS date_end,
+                    jp.status,
+                    jp.hourly_rate,
+                    e.name AS employer_name,
+                    e.location,
+                    p.name AS pet_name,
+                    p.pet_type
+                FROM 
+                    JOB_POST jp
+                JOIN 
+                    EMPLOYER emp ON jp.employer_id = emp.id
+                JOIN 
+                    APP_USER e ON emp.user_id = e.id
+                JOIN 
+                    PET p ON jp.pet_id = p.id
+                JOIN 
+                    JOB_ASSIGNMENT stat ON jp.id = stat.job_id
+                WHERE 
+                    stat.status = 'accepted' 
+                AND
+                    stat.freelancer_id = $1
+                
+                ORDER BY 
+                    jp.created_at DESC
+            `;
+    const jobs = await db.any(query, [actualUserId]);
+    // Render the job board template with the jobs data
+    res.render("pages/profile", { jobs, email: req.session.email });
+  } catch (err) {
+    console.error("Error fetching pets:", err);
+    res.status(500).send("Server error");
+  }
+}
+});
 // -------------------------------------  PROFILE EDIT - EMPLOYERS   ---------------------------------------
 
 app.get("/edit-profile", isLoggedIn, async (req, res) => {
@@ -359,6 +434,59 @@ app.post("/edit-profile", isLoggedIn, async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).send("Error updating profile");
+  }
+});
+
+
+app.post("/add-pet", isLoggedIn, async (req, res) => {
+  const { name, pet_type, age, special_needs } = req.body;
+  const userId = req.session.userId;
+  const type = req.query.type;
+
+  try {
+    const { id: actualUserId } = await db.one('SELECT id FROM employer WHERE user_id = $1', [userId])
+    const newPet = await db.one(
+      `INSERT INTO PET (owner_id, name, pet_type, age, special_needs) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [actualUserId, name, pet_type, age, special_needs]
+    );
+    res.redirect("/profile");
+    res.status(201).send(newPet);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error Adding Pet");
+  }
+});
+
+
+app.post("/job-add", isLoggedIn, async (req, res) => {
+  const { jobId } = req.body;
+  const userId = req.session.userId;
+  const type = req.query.type;
+  const { id: actualUserId } = await db.one('SELECT id FROM freelancer WHERE user_id = $1', [userId])
+
+  try {
+    const newJob = await db.one(
+      `INSERT INTO JOB_ASSIGNMENT (job_id, freelancer_id, status) 
+       VALUES ($1, $2, 'accepted') RETURNING *`,
+      [jobId, actualUserId]
+    );
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error Adding Job");
+  }
+  try {
+    const newJob = await db.one(
+      `UPDATE JOB_POST
+       SET status = 'assigned'
+       WHERE id = $1
+       RETURNING *`,
+      [jobId]
+    );
+    res.redirect("/profile");
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error Updating Job");
   }
 });
 
