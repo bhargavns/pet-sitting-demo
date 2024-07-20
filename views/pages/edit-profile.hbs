@@ -35,3 +35,38 @@
   {{/ifEquals}}
   <button type="submit">Update Profile</button>
 </form>
+
+
+{{#ifEquals user.type "employer"}}
+<h1>Add a Pet</h1>
+<form action="/edit-profile/add-pet" method="post">
+  <label for="pet_name">Pet Name:</label>
+  <input type="text" id="pet_name" name="pet_name" required /><br/>
+  
+  <label for="pet_type">Pet Type:</label>
+  <select name="pet_type" id="pet_type" required>
+    <option value="cat">Cat</option>
+    <option value="dog">Dog</option>
+  </select> <br/>
+
+  <label for="pet_age">Pet Age:</label>
+  <input type="number" id="pet_age" name="pet_age"/><br/>
+  
+  <label for="special_needs">Special Needs:</label>
+  <input type="text" id="special_needs" name="special_needs" required /><br/>
+ 
+  <button type="submit">Update Profile</button>
+</form>
+
+<h1>Pets</h1>
+{{#each petData}}
+<div class="card" style="width: 18rem;">
+  <div class="card-body">
+    <h5 class="card-title">{{name}}</h5>
+    <h6 class="card-subtitle mb-2">{{pet_type}}</h6>
+    {{#if age}}<p class="card-text text-muted">Age: {{age}}</p>{{/if}}
+    <p class="card-text">{{special_needs}}</a>
+  </div>
+</div>
+{{/each}}
+{{/ifEquals}}
