@@ -25,10 +25,12 @@ const hbs = handlebars.create({
   },
 });
 
+// Register `hbs` as our view engine using its bound `engine()` function.
 app.engine("hbs", hbs.engine);
 app.set("view engine", "hbs");
 app.set("views", path.join(__dirname, "views"));
 app.use(bodyParser.json());
+// set Session
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -42,6 +44,7 @@ app.use(
   })
 );
 
+// -------------------------------------  DB CONFIG AND CONNECT   ---------------------------------------
 const dbConfig = {
   host: process.env.HOST,
   port: 5432,
@@ -51,6 +54,7 @@ const dbConfig = {
 };
 const db = pgp(dbConfig);
 
+// db test
 db.connect()
   .then((obj) => {
     console.log("Database connection successful");
@@ -58,6 +62,21 @@ db.connect()
   })
   .catch((error) => {
     console.error("Database connection error:", error);
+    console.error("Connection details:", {
+      host: dbConfig.host,
+      port: dbConfig.port,
+      database: dbConfig.database,
+      user: dbConfig.user,
+    });
+  });
+
+// db check if table exists
+db.query("SELECT * FROM job_post")
+  .then((result) => {
+    console.log("Table exists");
+  })
+  .catch((error) => {
+    console.error("Table does not exist:", error);
   });
 
 // -------------------------------------  ROUTES   ---------------------------------------
@@ -180,7 +199,9 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
   const userId = req.session.userId;
   if (req.session.userType === "employer") {
     try {
-      const employerData = await db.one(`
+      // Fetch the current profile data from the database
+      const employerData = await db.one(
+        `
         SELECT a.name, a.location, e.budget, e.id AS employer_id
         FROM app_user a
         INNER JOIN employer e ON a.id = e.user_id
@@ -214,6 +235,7 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
     }
   } else if (req.session.userType === "freelancer") {
     try {
+      // Fetch the current profile data from the database
       const freelancerData = await db.one(`
         SELECT a.name, a.location, f.bio, f.profile_picture
         FROM app_user a
@@ -221,7 +243,8 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
         WHERE a.id = $1`,
         [userId]
       );
-
+      
+      // Render the Handlebars template with the fetched data
       res.render("pages/edit-profile", {
         user: {
           name: freelancerData.name,
