@@ -35,3 +35,31 @@
   {{/ifEquals}}
   <button type="submit">Update Profile</button>
 </form>
+
+<h3>Add New Pet</h3>
+<form action="/edit-profile/add-pet" method="post">
+  <input type="text" name="name" required placeholder="Pet Name">
+  <select name="petType" required>
+    <option value="dog">Dog</option>
+    <option value="cat">Cat</option>
+  </select>
+  <input type="number" name="age" placeholder="Age">
+  <textarea name="specialNeeds" placeholder="Special Needs"></textarea>
+  <button type="submit">Add Pet</button>
+</form>
+
+<h3>Your Pets</h3>
+{{#if pets.length}}
+  <div>
+    {{#each pets}}
+      <div class="pet-card">
+        <h4>{{name}}</h4>
+        <p>Type: {{pet_type}}</p>
+        <p>Age: {{age}}</p>
+        <p>Special Needs: {{special_needs}}</p>
+      </div>
+    {{/each}}
+  </div>
+{{else}}
+  <p>No pets added yet.</p>
+{{/if}}
