@@ -14,7 +14,10 @@
             </div>
             <p class="card-text job-status">Status: {{status}}</p>
             <p class="card-text job-location">Location: {{location}}</p>
-            <a href="/job/{{id}}" class="btn btn-primary view-job-btn">Accept Job</a>
+            <form action="/job-add" method="POST" class="btn">
+                <input type="hidden" name="jobId" value="{{id}}">
+                <button type="submit" class="btn btn-primary view-job-btn">Accept Job</button>
+            </form>
         </div>
     </div>
 </div>
