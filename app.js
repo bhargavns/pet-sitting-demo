@@ -140,8 +140,6 @@ app.post("/register", async (req, res) => {
 
 // -------------------------------------  LOGIN   ---------------------------------------
 
-const secretKey = process.env.SESSION_SECRET;
-
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -195,102 +193,67 @@ function isLoggedIn(req, res, next) {
   next();
 }
 
-// -------------------------------------  JOB LISTING   ---------------------------------------
-
-app.get("/jobs", isLoggedIn, async (req, res) => {
-  try {
-    const query = `
-                SELECT 
-                    jp.id,
-                    jp.title,
-                    jp.description,
-                    TO_CHAR(jp.date_start, 'MM/DD/YYYY') AS date_start,
-                    TO_CHAR(jp.date_end, 'MM/DD/YYYY') AS date_end,
-                    jp.status,
-                    jp.hourly_rate,
-                    e.name AS employer_name,
-                    e.location,
-                    p.name AS pet_name,
-                    p.pet_type
-                FROM 
-                    JOB_POST jp
-                JOIN 
-                    EMPLOYER emp ON jp.employer_id = emp.id
-                JOIN 
-                    APP_USER e ON emp.user_id = e.id
-                JOIN 
-                    PET p ON jp.pet_id = p.id
-                WHERE 
-                    jp.status = 'open'
-                ORDER BY 
-                    jp.created_at DESC
-            `;
-
-    const jobs = await db.any(query);
-
-    // Render the job board template with the jobs data
-    res.render("pages/job_listing", { jobs, email: req.session.email });
-  } catch (err) {
-    console.error("Error fetching job posts:", err);
-    res.status(500).send("Server error");
-  }
-});
-
 // -------------------------------------  PROFILE EDIT - EMPLOYERS   ---------------------------------------
 
 app.get("/edit-profile", isLoggedIn, async (req, res) => {
   const userId = req.session.userId;
-  if (req.session.userType == "employer") {
+  if (req.session.userType === "employer") {
     try {
       // Fetch the current profile data from the database
-      const userData = await db.one(
+      const employerData = await db.one(
         `
-          SELECT a.name, a.location, e.budget
-          FROM app_user a
-          INNER JOIN employer e ON a.id = e.user_id
-          WHERE a.id = $1`,
+        SELECT a.name, a.location, e.budget, e.id AS employer_id
+        FROM app_user a
+        INNER JOIN employer e ON a.id = e.user_id
+        WHERE a.id = $1`,
         [userId]
+      );
+
+      const pets = await db.any(`
+        SELECT name, pet_type, age, special_needs
+        FROM pet
+        WHERE owner_id = $1`,
+        [employerData.employer_id]
       );
 
       // Render the Handlebars template with the fetched data
       res.render("pages/edit-profile", {
         user: {
-          name: userData.name,
-          location: userData.location,
+          name: employerData.name,
+          location: employerData.location,
           type: req.session.userType,
         },
         employer: {
-          budget: userData.budget,
+          budget: employerData.budget,
         },
+        pets: pets,
         email: req.session.email,
       });
     } catch (error) {
       console.log(error);
       res.status(500).send("Error fetching profile data");
     }
-  }
-  if (req.session.userType == "freelancer") {
+  } else if (req.session.userType === "freelancer") {
     try {
       // Fetch the current profile data from the database
-      const userData = await db.one(
-        `
-          SELECT a.name, a.location, f.bio, f.profile_picture
-          FROM app_user a
-          INNER JOIN freelancer f ON a.id = f.user_id
-          WHERE a.id = $1`,
+      const freelancerData = await db.one(`
+        SELECT a.name, a.location, f.bio, f.profile_picture
+        FROM app_user a
+        INNER JOIN freelancer f ON a.id = f.user_id
+        WHERE a.id = $1`,
         [userId]
       );
-
+      
       // Render the Handlebars template with the fetched data
       res.render("pages/edit-profile", {
         user: {
-          name: userData.name,
-          location: userData.location,
+          name: freelancerData.name,
+          location: freelancerData.location,
           type: req.session.userType,
         },
         freelancer: {
-          bio: userData.bio,
-          profile_picture: userData.profile_picture,
+          bio: freelancerData.bio,
+          profile_picture: freelancerData.profile_picture,
         },
         email: req.session.email,
       });
@@ -301,64 +264,23 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
   }
 });
 
-app.post("/edit-profile", isLoggedIn, async (req, res) => {
+// -------------------------------------  ADD PET   ---------------------------------------
+
+app.post("/edit-profile/add-pet", isLoggedIn, async (req, res) => {
+  if (req.session.userType !== 'employer') {
+    return res.status(403).send("Only employers can add pets.");
+  }
+  const { name, petType, age, specialNeeds } = req.body;
   const userId = req.session.userId;
+
   try {
-    const name = req.body.name;
-    const location = req.body.location;
-
-    if (req.session.userType == "employer") {
-      const budget = req.body.budget;
-
-      // Validate input
-      if (budget !== undefined && (isNaN(budget) || budget < 0)) {
-        return res.status(400).send("Invalid budget value");
-      }
-      await db.tx(async (t) => {
-        if (budget !== undefined) {
-          await t.none(
-            `UPDATE employer
-              SET budget = $1
-              WHERE user_id = $2`,
-            [budget, userId]
-          );
-        }
-      });
-    }
-    if (req.session.userType == "freelancer") {
-      const bio = req.body.bio;
-      const profile_picture = req.body.profile_picture;
-      await db.tx(async (t) => {
-        if (bio !== undefined || profile_picture !== undefined) {
-          await t.none(
-            `UPDATE freelancer
-              SET bio = COALESCE($1, bio), profile_picture = COALESCE($2, profile_picture)
-              WHERE user_id = $3`,
-            [bio, profile_picture, userId]
-          );
-        }
-      });
-    }
-
-    if (name !== undefined || location !== undefined) {
-      await db.none(
-        `UPDATE app_user
-          SET name = COALESCE($1, name), location = COALESCE($2, location)
-          WHERE id = $3`,
-        [name, location, userId]
-      );
-    }
-    res.send(`
-                <script>
-                    alert('Profile updated successfully');
-                    setTimeout(function() {
-                    window.location.href = '/edit-profile';
-                    }, 500);
-                </script>
-        `);
+    const employer = await db.one('SELECT id FROM EMPLOYER WHERE user_id = $1', [userId]);
+    await db.none('INSERT INTO PET (owner_id, name, pet_type, age, special_needs) VALUES ($1, $2, $3, $4, $5)',
+      [employer.id, name, petType, age, specialNeeds]);
+    res.redirect('/edit-profile');
   } catch (error) {
-    console.log(error);
-    res.status(500).send("Error updating profile");
+    console.error('Error adding pet:', error);
+    res.status(500).send("Failed to add pet: " + error.message);
   }
 });
 
