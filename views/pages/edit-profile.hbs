@@ -35,3 +35,39 @@
   {{/ifEquals}}
   <button type="submit">Update Profile</button>
 </form>
+
+{{#ifEquals user.type "employer"}}
+<!-- Pet Details Form -->
+<h2>Add a Pet</h2>
+<form action="/add-pet" method="post">
+  <label for="pet_name">Pet Name:</label>
+  <input type="text" id="pet_name" name="pet_name" required /><br />
+  
+  <label for="pet_type">Pet Type:</label>
+  <select id="pet_type" name="pet_type" required>
+    <option value="cat">Cat</option>
+    <option value="dog">Dog</option>
+  </select><br />
+  
+  <label for="pet_age">Pet Age:</label>
+  <input type="number" id="pet_age" name="pet_age" /><br />
+  
+  <label for="special_needs">Special Needs:</label>
+  <textarea id="special_needs" name="special_needs"></textarea><br />
+  
+  <button type="submit">Add Pet</button>
+</form>
+
+<!-- Display Pets -->
+<div class="container mt-5">
+  <h2 class="mb-4">Your Pets</h2>
+  <div class="row">
+      {{#each pets}}
+        <div class="col-md-4 mb-3">
+          {{> pet_card}}
+        </div>
+      {{/each}}
+    </div>
+  </div>
+</div>
+{{/ifEquals}}

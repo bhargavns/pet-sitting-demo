@@ -252,6 +252,14 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
         [userId]
       );
 
+      // Fetch the pets data for the employer
+      const petsData = await db.any(
+        `SELECT name, pet_type, age, special_needs 
+         FROM PET 
+         WHERE owner_id = (SELECT id FROM EMPLOYER WHERE user_id = $1)`,
+        [userId]
+      );
+
       // Render the Handlebars template with the fetched data
       res.render("pages/edit-profile", {
         user: {
@@ -262,6 +270,7 @@ app.get("/edit-profile", isLoggedIn, async (req, res) => {
         employer: {
           budget: userData.budget,
         },
+        pets: petsData,
         email: req.session.email,
       });
     } catch (error) {
@@ -361,6 +370,40 @@ app.post("/edit-profile", isLoggedIn, async (req, res) => {
     res.status(500).send("Error updating profile");
   }
 });
+
+// Add pet route
+app.post("/add-pet", isLoggedIn, async (req, res) => {
+  const userId = req.session.userId;
+  const { pet_name, pet_type, pet_age, special_needs } = req.body;
+
+  try {
+    // get the employer's ID using the user_id
+    const employerData = await db.one(
+      `SELECT id FROM EMPLOYER WHERE user_id = $1`,
+      [userId]
+    );
+    const owner_id = employerData.id;
+
+    // insert new pet with data
+    await db.none(
+      `INSERT INTO PET (owner_id, name, pet_type, age, special_needs) VALUES ($1, $2, $3, $4, $5)`,
+      [owner_id, pet_name, pet_type, pet_age, special_needs]
+    );
+
+    res.send(`
+      <script>
+        alert('Pet added successfully');
+        setTimeout(function() {
+          window.location.href = '/edit-profile';
+        }, 500);
+      </script>
+    `);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error adding pet");
+  }
+});
+
 
 // -------------------------------------  SERVER START   ---------------------------------------
 
