@@ -100,7 +100,7 @@ const jobsRoute = require("./src/routes/jobs/jobs");
 app.use("/jobs", jobsRoute);
 
 // -------------------------------------  PROFILE EDIT   ---------------------------------------
-
+/*
 const { getEmployerProfile, getFreelancerProfile } = require('./src/queries/profileQueries');
 
 
@@ -174,6 +174,9 @@ app.post("/edit-profile", isLoggedIn, async (req, res) => {
     res.status(500).send("Error updating profile");
   }
 });
+*/
+const editProfileRoutes = require("./src/routes/profile/profile");
+app.use("/", editProfileRoutes);
 
 // -------------------------------------  404   ---------------------------------------
 
