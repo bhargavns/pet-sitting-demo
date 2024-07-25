@@ -3,6 +3,7 @@ const { updateEmployer, updateFreelancer, updateUser } = require('../../queries/
 const {isLoggedIn} = require('../../middleware/authStatus');
 const express = require("express");
 const router = express.Router();
+const db = require("../../config/database");
 
 
 router.get("/", isLoggedIn, async (req, res) => {
@@ -20,6 +21,14 @@ router.get("/", isLoggedIn, async (req, res) => {
       };
     }
 
+    const petData = await db.any(
+        `
+          SELECT name, pet_type, age, special_needs
+          FROM pet
+          WHERE owner_id = (SELECT id FROM EMPLOYER WHERE user_id = $1 LIMIT 1)`,
+        [userId]
+      );
+
     // Render the Handlebars template with the fetched data
     res.render("pages/edit-profile", {
       user: {
@@ -29,6 +38,7 @@ router.get("/", isLoggedIn, async (req, res) => {
       },
       ...userData,
       email: req.session.email,
+      petData,
     });
   } catch (error) {
     console.log(error);
