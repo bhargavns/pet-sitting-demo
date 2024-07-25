@@ -6,11 +6,13 @@ console.log("Public directory:", path.join(__dirname, "public"));
 app.use(express.static("public"));
 
 const handlebars = require("express-handlebars");
-const pgp = require("pg-promise")();
 const bodyParser = require("body-parser");
-const bcrypt = require("bcryptjs");
 
 const session = require("express-session");
+
+// -------------------------------------  MIDDLEWARE IMPORTS   ----------------------------------------------
+
+const { isLoggedIn } = require("./src/middleware/authStatus");
 
 // -------------------------------------  APP CONFIG   ----------------------------------------------
 // create `ExpressHandlebars` instance and configure the layouts and partials dir.
@@ -45,16 +47,9 @@ app.use(
 );
 
 // -------------------------------------  DB CONFIG AND CONNECT   ---------------------------------------
-const dbConfig = {
-  host: process.env.HOST,
-  port: 5432,
-  database: process.env.POSTGRES_DB,
-  user: process.env.POSTGRES_USER,
-  password: process.env.POSTGRES_PASSWORD,
-};
-const db = pgp(dbConfig);
 
-// db test
+const db = require("./src/config/database");
+
 db.connect()
   .then((obj) => {
     console.log("Database connection successful");
@@ -73,7 +68,7 @@ db.connect()
 // db check if table exists
 db.query("SELECT * FROM job_post")
   .then((result) => {
-    console.log("Table exists");
+    console.log("Tables exist");
   })
   .catch((error) => {
     console.error("Table does not exist:", error);
@@ -81,295 +76,38 @@ db.query("SELECT * FROM job_post")
 
 // -------------------------------------  ROUTES   ---------------------------------------
 
-app.get("/", (req, res) => {
-  res.send("Example website");
-});
-
-app.get("/register", (req, res) => {
-  res.render("pages/register");
-});
-
-app.get("/login", (req, res) => {
-  res.render("pages/login");
-});
+const landingRoutes = require("./src/routes/landing/landing");
+app.use("/", landingRoutes);
 
 // -------------------------------------  REGISTER   ---------------------------------------
 
-app.post("/register", async (req, res) => {
-  const { name, email, password, location } = req.body;
-  const type = req.query.type;
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await db.one(
-      `INSERT INTO app_user (name, email, password_hash, type, location)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, email, hashedPassword, type, location]
-    );
-
-    if (type === "employer") {
-      await db.none(
-        `INSERT INTO employer (user_id, budget)
-            VALUES ($1, $2)`,
-        [newUser.id, 0]
-      );
-    }
-
-    if (type === "freelancer") {
-      await db.none(
-        `INSERT INTO freelancer (user_id, bio, profile_picture)
-            VALUES ($1, $2, $3)`,
-        [newUser.id, "new freelancer", "default.jpg"]
-      );
-    }
-
-    req.session.userId = newUser.id;
-    req.session.userType = type;
-    res.send(`
-                <script>
-                    alert('Registration successful');
-                    setTimeout(function() {
-                    window.location.href = '/login';
-                    }, 1000);
-                </script>
-        `);
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Error in user registration");
-  }
-});
+const registerRoute = require("./src/routes/auth/register");
+app.use("/register", registerRoute);
 
 // -------------------------------------  LOGIN   ---------------------------------------
 
-const secretKey = process.env.SESSION_SECRET;
-
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await db.oneOrNone("SELECT * FROM app_user WHERE email = $1", [
-      email,
-    ]);
-    if (user && (await bcrypt.compare(password, user.password_hash))) {
-      req.session.userId = user.id; // Set user ID in session
-      req.session.userType = user.type; // Set user type in session
-      req.session.email = user.email; // Set user email in session
-      if (user.type === "freelancer") {
-        res.redirect("/jobs");
-      }
-      if (user.type === "employer") {
-        res.redirect("/edit-profile");
-      }
-    } else {
-      res.status(401).send("Invalid credentials");
-    }
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Error logging in");
-  }
-});
+const loginRoute = require("./src/routes/auth/auth");
+app.use("/login", loginRoute);
 
 // -------------------------------------  LOGOUT   ---------------------------------------
 
-app.get("/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(400).send("Unable to log out");
-    }
-    res.send(`
-                <script>
-                    alert('Logout successful');
-                    setTimeout(function() {
-                    window.location.href = '/login';
-                    }, 1000);
-                </script>
-        `);
-  });
-});
-
-// -------------------------------------  Auth Middleware   ---------------------------------------
-
-// Middleware to check if the user is logged in
-function isLoggedIn(req, res, next) {
-  if (!req.session.userId) {
-    return res.status(401).send("You are not logged in");
-  }
-  next();
-}
+const logoutRoute = require("./src/routes/auth/logout");
+app.use("/logout", logoutRoute);
 
 // -------------------------------------  JOB LISTING   ---------------------------------------
 
-app.get("/jobs", isLoggedIn, async (req, res) => {
-  try {
-    const query = `
-                SELECT 
-                    jp.id,
-                    jp.title,
-                    jp.description,
-                    TO_CHAR(jp.date_start, 'MM/DD/YYYY') AS date_start,
-                    TO_CHAR(jp.date_end, 'MM/DD/YYYY') AS date_end,
-                    jp.status,
-                    jp.hourly_rate,
-                    e.name AS employer_name,
-                    e.location,
-                    p.name AS pet_name,
-                    p.pet_type
-                FROM 
-                    JOB_POST jp
-                JOIN 
-                    EMPLOYER emp ON jp.employer_id = emp.id
-                JOIN 
-                    APP_USER e ON emp.user_id = e.id
-                JOIN 
-                    PET p ON jp.pet_id = p.id
-                WHERE 
-                    jp.status = 'open'
-                ORDER BY 
-                    jp.created_at DESC
-            `;
+const jobsRoute = require("./src/routes/jobs/jobs");
+app.use("/jobs", jobsRoute);
 
-    const jobs = await db.any(query);
+// -------------------------------------  PROFILE EDIT   ---------------------------------------
 
-    // Render the job board template with the jobs data
-    res.render("pages/job_listing", { jobs, email: req.session.email });
-  } catch (err) {
-    console.error("Error fetching job posts:", err);
-    res.status(500).send("Server error");
-  }
-});
+const profileRoute = require('./src/routes/profile/profile');
+app.use("/edit-profile", profileRoute);
 
-// -------------------------------------  PROFILE EDIT - EMPLOYERS   ---------------------------------------
+// -------------------------------------  404   ---------------------------------------
 
-app.get("/edit-profile", isLoggedIn, async (req, res) => {
-  const userId = req.session.userId;
-  if (req.session.userType == "employer") {
-    try {
-      // Fetch the current profile data from the database
-      const userData = await db.one(
-        `
-          SELECT a.name, a.location, e.budget
-          FROM app_user a
-          INNER JOIN employer e ON a.id = e.user_id
-          WHERE a.id = $1`,
-        [userId]
-      );
-
-      const petData = await db.any(
-        `
-          SELECT name, pet_type, age, special_needs
-          FROM pet
-          WHERE owner_id = (SELECT id FROM EMPLOYER WHERE user_id = $1 LIMIT 1)`,
-        [userId]
-      );
-
-      // Render the Handlebars template with the fetched data
-      res.render("pages/edit-profile", {
-        user: {
-          name: userData.name,
-          location: userData.location,
-          type: req.session.userType,
-        },
-        employer: {
-          budget: userData.budget,
-        },
-        email: req.session.email,
-        petData,
-      });
-    } catch (error) {
-      console.log(error);
-      res.status(500).send("Error fetching profile data");
-    }
-  }
-  if (req.session.userType == "freelancer") {
-    try {
-      // Fetch the current profile data from the database
-      const userData = await db.one(
-        `
-          SELECT a.name, a.location, f.bio, f.profile_picture
-          FROM app_user a
-          INNER JOIN freelancer f ON a.id = f.user_id
-          WHERE a.id = $1`,
-        [userId]
-      );
-
-      // Render the Handlebars template with the fetched data
-      res.render("pages/edit-profile", {
-        user: {
-          name: userData.name,
-          location: userData.location,
-          type: req.session.userType,
-        },
-        freelancer: {
-          bio: userData.bio,
-          profile_picture: userData.profile_picture,
-        },
-        email: req.session.email,
-      });
-    } catch (error) {
-      console.log(error);
-      res.status(500).send("Error fetching profile data");
-    }
-  }
-});
-
-app.post("/edit-profile", isLoggedIn, async (req, res) => {
-  const userId = req.session.userId;
-  try {
-    const name = req.body.name;
-    const location = req.body.location;
-
-    if (req.session.userType == "employer") {
-      const budget = req.body.budget;
-
-      // Validate input
-      if (budget !== undefined && (isNaN(budget) || budget < 0)) {
-        return res.status(400).send("Invalid budget value");
-      }
-      await db.tx(async (t) => {
-        if (budget !== undefined) {
-          await t.none(
-            `UPDATE employer
-              SET budget = $1
-              WHERE user_id = $2`,
-            [budget, userId]
-          );
-        }
-      });
-    }
-    if (req.session.userType == "freelancer") {
-      const bio = req.body.bio;
-      const profile_picture = req.body.profile_picture;
-      await db.tx(async (t) => {
-        if (bio !== undefined || profile_picture !== undefined) {
-          await t.none(
-            `UPDATE freelancer
-              SET bio = COALESCE($1, bio), profile_picture = COALESCE($2, profile_picture)
-              WHERE user_id = $3`,
-            [bio, profile_picture, userId]
-          );
-        }
-      });
-    }
-
-    if (name !== undefined || location !== undefined) {
-      await db.none(
-        `UPDATE app_user
-          SET name = COALESCE($1, name), location = COALESCE($2, location)
-          WHERE id = $3`,
-        [name, location, userId]
-      );
-    }
-    res.send(`
-                <script>
-                    alert('Profile updated successfully');
-                    setTimeout(function() {
-                    window.location.href = '/edit-profile';
-                    }, 500);
-                </script>
-        `);
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Error updating profile");
-  }
-});
+const notFoundRoute = require("./src/middleware/pageNotFound");
+app.use(notFoundRoute);
 
 app.post("/edit-profile/add-pet", isLoggedIn, async (req, res) => {
   const userId = req.session.userId;
