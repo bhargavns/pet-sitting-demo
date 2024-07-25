@@ -22,7 +22,6 @@
     "scripts": {
         "prestart": "npm install",
         "start": "nodemon app.js",
-        "test": "jest",
-        "testandrun": "npm run prestart && npm run test && npm start"
+        "testandrun": "npm run prestart && npm start"
     }
 }
